@@ -8,11 +8,12 @@ import numpy as np
 
 ruta = "."
 archivos = os.listdir(ruta)
-
+print(archivos)
 datasets = {}
 
 for archivo in archivos:
-    datasets[archivo] = pd.read_csv(os.path.join(ruta,archivo),sep=None,engine="python")
+    if archivo.endswith(".csv"):
+        datasets[archivo] = pd.read_csv(os.path.join(ruta,archivo),sep=None,engine="python")
 
 for nombre, df in datasets.items():
     print("ARCHIVO",nombre)

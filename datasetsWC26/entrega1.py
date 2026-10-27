@@ -72,7 +72,7 @@ jugadores = pd.merge(jugadores,df_teams[["team_id","team_name"]].drop_duplicates
 jugadores = jugadores.drop(columns=["team_id"])
 jugadores = jugadores.rename(columns={"team_name": "seleccion_nacional"})
 jugadores["club_jugador"] = df_squads["club_team"]
-#jugadores["partidos_seleccion"] = 
+jugadores["partidos_seleccion"] = df_squads["caps"]
 jugadores["posicion"] = df_player_stats["position"]
 jugadores["valor_mercado"] = df_squads["market_value_eur"]
 jugadores["partidos_jugados"] = df_player_stats["matches_played"]
@@ -228,6 +228,7 @@ jugadores["calificacion_media"] = jugadores["calificacion_media"].replace(0, np.
 jugadores.describe()
 
 # Eliminamos duplicados si hay:
+partidos = partidos.drop_duplicates()
 # Por ultimo vamos a ver el dataframe de eventos: Aquí hemos realizado el apartado 5 también.
 eventos.head()
 eventos.describe()
@@ -279,7 +280,443 @@ eventos["seleccion_evento"].value_counts(dropna=False).sort_index()
 # No se ve nada raro aquí asi que lo dejamos como estaba. 
 
 # 6) reconstruir una 'fecha_partido' usando expresiones regulares en el dataframe partidos
-partidos
+partidos["fecha_partido"].str.match(r"^\d{4}-\d{2}-\d{2}$")
+
+#Primero, vamos a crear una función que identifique el formato de la fecha:
+import re
+
+def identificar_formato(fecha):
+    fecha = str(fecha)
+
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", fecha):
+        return "AAAA-MM-DD"
+
+    elif re.fullmatch(r"\d{2}-\d{2}-\d{4}", fecha):
+        return "MM-DD-AAAA"
+    
+    elif re.fullmatch(r"\d{1,2} [A-Za-z]+ \d{4}",fecha):
+        return "DD Mes AAAA"
+    
+    elif re.fullmatch(r"^\d{2}/\d{2}/\d{4}$", fecha):
+        return "DD/MM/AAAA"
+
+    elif re.fullmatch(r"[A-Za-z]+ \d{1,2}, \d{4}", fecha):
+        return "Mes DD, AAAA"
+
+    elif re.fullmatch(r"\d{1,2}-[A-Za-z]{3}-\d{2}", fecha):
+        return "DD-Mes-AA"
+
+    elif re.fullmatch(r"[A-Za-z]+ \d{1,2} \d{4}", fecha):
+        return "Mes DD AAAA"
+
+    elif re.fullmatch(r"\d{8}", fecha):
+        return "AAAAMMDD"
+
+    elif re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", fecha):
+        return "DD.MM.AAAA"
+
+
+    elif re.fullmatch(r"\d{1,2} de [a-zA-Z]+ de \d{4}", fecha):
+            return "DD de Mes de AAAA"
+
+    elif re.fullmatch(r"\d{4}-\d{2}-\d{2}T.*", fecha):
+        return "fecha con hora"
+    else: 
+        return "Otro"
+
+#Una vez creada la función, vamos a crear una nueva columna en el dataframe que contenga el formato de la fecha de cada fecha:
+partidos["formato_fecha"] = partidos["fecha_partido"].apply(identificar_formato)
+
+#Y para contar cuantos registros hay por formato: 
+partidos["formato_fecha"].value_counts()
+
+meses = {
+    "january": "01", "jan": "01", "enero": "01", "ene": "01",
+    "february": "02", "feb": "02", "febrero": "02",
+    "march": "03", "mar": "03", "marzo": "03",
+    "april": "04", "apr": "04", "abril": "04", "abr": "04",
+    "may": "05", "mayo": "05",
+    "june": "06", "jun": "06", "junio": "06",
+    "july": "07", "jul": "07", "julio": "07",
+    "august": "08", "aug": "08", "agosto": "08", "ago": "08",
+    "september": "09", "sep": "09", "sept": "09", "septiembre": "09",
+    "october": "10", "oct": "10", "octubre": "10",
+    "november": "11", "nov": "11", "noviembre": "11",
+    "december": "12", "dec": "12", "diciembre": "12", "dic": "12"
+}
+
+#Ahora vamos a crear una función que, dependiendo del formato de la fecha,la recontruya para que sean todas iguales:
+def convertir_fecha(fecha):
+    fecha = str(fecha).strip()
+    formato = identificar_formato(fecha)
+
+    if formato in ["AAAA-MM-DD", "fecha con hora"]:
+        partes = fecha[:10].split("-")
+        ano, mes, dia = partes
+
+    elif formato == "MM-DD-AAAA":
+        partes = fecha.split("-")
+        mes, dia, ano = partes
+
+    elif formato == "DD Mes AAAA":
+        partes = fecha.split()
+        dia, mes, ano = partes
+        mes = meses[mes.lower()]
+
+    elif formato == "DD/MM/AAAA":
+        partes = fecha.split("/")
+        dia, mes, ano = partes
+
+    elif formato == "Mes DD, AAAA":
+        partes = fecha.replace(",", "").split()
+        mes, dia, ano = partes 
+        mes = meses[mes.lower()]
+
+    elif formato == "DD-Mes-AA":
+        partes = fecha.split("-")
+        dia = partes[0]
+        mes = partes[1]
+        ano = "20" + partes[2]
+        mes = meses[mes.lower()]
+
+    elif formato == "Mes DD AAAA":
+        partes = fecha.split()
+        mes, dia, ano = partes
+        mes = meses[mes.lower()]
+
+    elif formato == "AAAAMMDD":
+        ano = fecha[:4]
+        mes = fecha[4:6]
+        dia = fecha[6:]
+
+    elif formato == "DD.MM.AAAA":
+        partes = fecha.split(".")
+        dia, mes, ano = partes
+
+    elif formato == "DD de Mes de AAAA":
+        partes = fecha.split(" de ")
+        dia, mes, ano = partes
+        mes = meses[mes.lower()]
+
+    resultado = f"{int(dia)}/{int(mes)}/{int(ano)}"
+    return resultado
+
+partidos["fecha_original"] = partidos["fecha_partido"]
+partidos["fecha_partido"] = partidos["fecha_partido"].apply(convertir_fecha)
+
+#7) Imputación de valores faltantes
+
+#Valor_mercado: complete los datos faltantes utilizando Imputación por la Media de todos los jugadores de la misma Selección del jugador a imputar
+jugadores["valor_mercado"].isna().value_counts()
+#Aquí vemos que hay 90 valores faltantes.
+jugadores["is_valor_nan"] = jugadores["valor_mercado"].isna() # nos creamos una columna que nos dice si los valores son nulos o no
+jugadores.groupby(["seleccion_nacional"])["is_valor_nan"].value_counts() # clasificamos los nulos por el sector de ocupación
+jugadores["valor_mercado"] = jugadores["valor_mercado"].fillna(jugadores.groupby("seleccion_nacional")["valor_mercado"].transform("mean"))
+
+#Calificacion_media: complete los datos faltantes con Imputación por Regresión basada en la correlación con las estadísticas de goles, asistencias, tarjetas amarillas y rojas, paradas o goles concedidos (Consejo: distinga el caso de porteros y otras posiciones
+#La primera imputación por regresión la vamos a hacer basada en la correlación con las estadisticas de goles (vamos a usar solo los jugadores que no sean porteros, ya que estos interferian con la imputación porque tendrian valores para esta variable muy baja aunque puedan tener calificaciones altas)
+
+jugadores_campo = jugadores[jugadores["posicion"] != "GK"]
+jugadores_campo.plot("calificacion_media", "goles", kind="scatter")
+
+from sklearn.linear_model import LinearRegression
+
+jugadores_imputacion_goles = jugadores_campo.copy()
+
+# Eliminamos las filas que no tienen m2. La regresión necesita ejemplos completos para aprender
+train = jugadores_imputacion_goles.dropna(subset=["goles", "calificacion_media"])
+
+# Entrenamos el modelo. El modelo aprende la relación entre habitaciones y metros cuadrados.
+# .fit(X, y) x- variable explicativa, n_rooms; y - variable objetivo - m2
+
+model = LinearRegression().fit(
+    train[["goles"]],
+    train["calificacion_media"])
+
+mask = jugadores_imputacion_goles["calificacion_media"].isna()
+
+# Filtramos los valores faltantes y predecimos sus valores a partir del modelo
+mask_pred = mask & jugadores_imputacion_goles["goles"].notna()
+
+jugadores_imputacion_goles.loc[mask_pred, "calificacion_media"] = model.predict(
+    jugadores_imputacion_goles.loc[mask_pred, ["goles"]]
+)
+
+# Marcamos que datos fueron imputados
+jugadores_imputacion_goles["imputed"] = mask
+
+def fit_linear_regression(df: pd.DataFrame,    x_col: str,    y_col: str) -> LinearRegression:
+
+    df_non_nan = df.dropna(subset=[y_col])
+    model = LinearRegression().fit(
+        df_non_nan[[x_col]], 
+        df_non_nan[y_col])
+    return model
+
+def predict_linear_regression(    df: pd.DataFrame,    x_col: str,    model: LinearRegression) -> pd.Series:
+    return model.predict(df[[x_col]])
+
+# Representamos el gráfico utilizando la columna imputed para el color
+fig, ax = plt.subplots()
+plt.scatter(jugadores_imputacion_goles["calificacion_media"], jugadores_imputacion_goles["goles"], c=jugadores_imputacion_goles["imputed"])
+
+ax.set_xlabel("calificacion_media")
+ax.set_ylabel("goles")
+
+#Ahora repetimos la imputacion pero con asistencias (seguiremos usando el datafrmae que solo contiene los jugadores):
+
+jugadores_campo.plot("calificacion_media", "asistencias", kind="scatter")
+jugadores_imputacion_asistencias = jugadores_campo.copy()
+
+# Eliminamos las filas que no tienen m2. La regresión necesita ejemplos completos para aprender
+train = jugadores_imputacion_asistencias.dropna(subset=["asistencias", "calificacion_media"])
+
+# Entrenamos el modelo. El modelo aprende la relación entre habitaciones y metros cuadrados.
+# .fit(X, y) x- variable explicativa, n_rooms; y - variable objetivo - m2
+
+model = LinearRegression().fit(
+    train[["asistencias"]],
+    train["calificacion_media"])
+
+mask = jugadores_imputacion_asistencias["calificacion_media"].isna()
+
+# Filtramos los valores faltantes y predecimos sus valores a partir del modelo
+mask_pred = mask & jugadores_imputacion_asistencias["asistencias"].notna()
+
+jugadores_imputacion_asistencias.loc[mask_pred, "calificacion_media"] = model.predict(
+    jugadores_imputacion_asistencias.loc[mask_pred, ["asistencias"]]
+)
+
+# Marcamos que datos fueron imputados
+jugadores_imputacion_asistencias["imputed"] = mask
+
+def fit_linear_regression(df: pd.DataFrame,    x_col: str,    y_col: str) -> LinearRegression:
+
+    df_non_nan = df.dropna(subset=[y_col])
+    model = LinearRegression().fit(
+        df_non_nan[[x_col]], 
+        df_non_nan[y_col])
+    return model
+
+def predict_linear_regression(    df: pd.DataFrame,    x_col: str,    model: LinearRegression) -> pd.Series:
+    return model.predict(df[[x_col]])
+
+# Representamos el gráfico utilizando la columna imputed para el color
+fig, ax = plt.subplots()
+plt.scatter(jugadores_imputacion_asistencias["calificacion_media"], jugadores_imputacion_asistencias["asistencias"], c=jugadores_imputacion_asistencias["imputed"])
+
+ax.set_xlabel("calificacion_media")
+
+ax.set_ylabel("asistencias")
+
+#Para las variables de tarjetas amarillas y rojas podemos usar todos los jugadores:
+jugadores.plot("calificacion_media", "tarjetas_amarillas", kind="scatter")
+jugadores_imputacion_amarillas = jugadores.copy()
+
+# Eliminamos las filas que no tienen m2. La regresión necesita ejemplos completos para aprender
+train = jugadores_imputacion_amarillas.dropna(subset=["tarjetas_amarillas", "calificacion_media"])
+
+# Entrenamos el modelo. El modelo aprende la relación entre habitaciones y metros cuadrados.
+# .fit(X, y) x- variable explicativa, n_rooms; y - variable objetivo - m2
+
+model = LinearRegression().fit(
+    train[["tarjetas_amarillas"]],
+    train["calificacion_media"])
+
+mask = jugadores_imputacion_amarillas["calificacion_media"].isna()
+
+# Filtramos los valores faltantes y predecimos sus valores a partir del modelo
+mask_pred = mask & jugadores_imputacion_amarillas["tarjetas_amarillas"].notna()
+
+jugadores_imputacion_amarillas.loc[mask_pred, "calificacion_media"] = model.predict(
+    jugadores_imputacion_amarillas.loc[mask_pred, ["tarjetas_amarillas"]]
+)
+
+# Marcamos que datos fueron imputados
+jugadores_imputacion_amarillas["imputed"] = mask
+
+def fit_linear_regression(df: pd.DataFrame,    x_col: str,    y_col: str) -> LinearRegression:
+
+    df_non_nan = df.dropna(subset=[y_col])
+    model = LinearRegression().fit(
+        df_non_nan[[x_col]], 
+        df_non_nan[y_col])
+    return model
+
+def predict_linear_regression(    df: pd.DataFrame,    x_col: str,    model: LinearRegression) -> pd.Series:
+    return model.predict(df[[x_col]])
+
+# Representamos el gráfico utilizando la columna imputed para el color
+fig, ax = plt.subplots()
+plt.scatter(jugadores_imputacion_amarillas["calificacion_media"], jugadores_imputacion_amarillas["tarjetas_amarillas"], c=jugadores_imputacion_amarillas["imputed"])
+
+ax.set_xlabel("calificacion_media")
+
+ax.set_ylabel("tarjetas_amarillas")
+
+jugadores.plot("calificacion_media", "tarjetas_rojas", kind="scatter")
+
+jugadores_imputacion_rojas = jugadores.copy()
+
+# Eliminamos las filas que no tienen m2. La regresión necesita ejemplos completos para aprender
+train = jugadores_imputacion_rojas.dropna(subset=["tarjetas_rojas", "calificacion_media"])
+
+# Entrenamos el modelo. El modelo aprende la relación entre habitaciones y metros cuadrados.
+# .fit(X, y) x- variable explicativa, n_rooms; y - variable objetivo - m2
+
+model = LinearRegression().fit(
+    train[["tarjetas_rojas"]],
+    train["calificacion_media"])
+
+mask = jugadores_imputacion_rojas["calificacion_media"].isna()
+
+# Filtramos los valores faltantes y predecimos sus valores a partir del modelo
+mask_pred = mask & jugadores_imputacion_rojas["tarjetas_rojas"].notna()
+
+jugadores_imputacion_rojas.loc[mask_pred, "calificacion_media"] = model.predict(
+    jugadores_imputacion_rojas.loc[mask_pred, ["tarjetas_rojas"]]
+)
+
+# Marcamos que datos fueron imputados
+jugadores_imputacion_rojas["imputed"] = mask
+
+def fit_linear_regression(df: pd.DataFrame,    x_col: str,    y_col: str) -> LinearRegression:
+
+    df_non_nan = df.dropna(subset=[y_col])
+    model = LinearRegression().fit(
+        df_non_nan[[x_col]], 
+        df_non_nan[y_col])
+    return model
+
+def predict_linear_regression(    df: pd.DataFrame,    x_col: str,    model: LinearRegression) -> pd.Series:
+    return model.predict(df[[x_col]])
+
+# Representamos el gráfico utilizando la columna imputed para el color
+fig, ax = plt.subplots()
+plt.scatter(jugadores_imputacion_rojas["calificacion_media"], jugadores_imputacion_rojas["tarjetas_rojas"], c=jugadores_imputacion_rojas["imputed"])
+
+ax.set_xlabel("calificacion_media")
+
+ax.set_ylabel("tarjetas_rojas")
+
+#Para la ultima variable usamos solo los porteros: 
+
+jugadores_porteros = jugadores[jugadores["posicion"] == "GK"]
+jugadores_porteros.plot("calificacion_media", "goles_concedidos", kind="scatter")
+
+jugadores_imputacion_goles_concedidos = jugadores_porteros.copy()
+
+# Eliminamos las filas que no tienen m2. La regresión necesita ejemplos completos para aprender
+train = jugadores_imputacion_goles_concedidos.dropna(subset=["goles_concedidos", "calificacion_media"])
+
+# Entrenamos el modelo. El modelo aprende la relación entre habitaciones y metros cuadrados.
+# .fit(X, y) x- variable explicativa, n_rooms; y - variable objetivo - m2
+
+model = LinearRegression().fit(
+    train[["goles_concedidos"]],
+    train["calificacion_media"])
+
+mask = jugadores_imputacion_goles_concedidos["calificacion_media"].isna()
+
+# Filtramos los valores faltantes y predecimos sus valores a partir del modelo
+mask_pred = mask & jugadores_imputacion_goles_concedidos["goles_concedidos"].notna()
+
+jugadores_imputacion_goles_concedidos.loc[mask_pred, "calificacion_media"] = model.predict(
+    jugadores_imputacion_goles_concedidos.loc[mask_pred, ["goles_concedidos"]]
+)
+
+# Marcamos que datos fueron imputados
+jugadores_imputacion_goles_concedidos["imputed"] = mask
+
+def fit_linear_regression(df: pd.DataFrame,    x_col: str,    y_col: str) -> LinearRegression:
+
+    df_non_nan = df.dropna(subset=[y_col])
+    model = LinearRegression().fit(
+        df_non_nan[[x_col]], 
+        df_non_nan[y_col])
+    return model
+
+def predict_linear_regression(    df: pd.DataFrame,    x_col: str,    model: LinearRegression) -> pd.Series:
+    return model.predict(df[[x_col]])
+
+# Representamos el gráfico utilizando la columna imputed para el color
+fig, ax = plt.subplots()
+plt.scatter(jugadores_imputacion_goles_concedidos["calificacion_media"], jugadores_imputacion_goles_concedidos["goles_concedidos"], c=jugadores_imputacion_goles_concedidos["imputed"])
+
+ax.set_xlabel("calificacion_media")
+
+ax.set_ylabel("goles_concedidos")
+
+jugadores_porteros.plot("calificacion_media", "paradas", kind="scatter")
+
+jugadores_imputacion_paradas = jugadores_porteros.copy()
+
+# Eliminamos las filas que no tienen m2. La regresión necesita ejemplos completos para aprender
+train = jugadores_imputacion_paradas.dropna(subset=["paradas", "calificacion_media"])
+
+# Entrenamos el modelo. El modelo aprende la relación entre habitaciones y metros cuadrados.
+# .fit(X, y) x- variable explicativa, n_rooms; y - variable objetivo - m2
+
+model = LinearRegression().fit(
+    train[["paradas"]],
+    train["calificacion_media"])
+
+mask = jugadores_imputacion_paradas["calificacion_media"].isna()
+
+# Filtramos los valores faltantes y predecimos sus valores a partir del modelo
+mask_pred = mask & jugadores_imputacion_paradas["paradas"].notna()
+
+jugadores_imputacion_paradas.loc[mask_pred, "calificacion_media"] = model.predict(
+    jugadores_imputacion_paradas.loc[mask_pred, ["paradas"]]
+)
+
+# Marcamos que datos fueron imputados
+jugadores_imputacion_paradas["imputed"] = mask
+
+def fit_linear_regression(df: pd.DataFrame,    x_col: str,    y_col: str) -> LinearRegression:
+
+    df_non_nan = df.dropna(subset=[y_col])
+    model = LinearRegression().fit(
+        df_non_nan[[x_col]], 
+        df_non_nan[y_col])
+    return model
+
+def predict_linear_regression(    df: pd.DataFrame,    x_col: str,    model: LinearRegression) -> pd.Series:
+    return model.predict(df[[x_col]])
+
+# Representamos el gráfico utilizando la columna imputed para el color
+fig, ax = plt.subplots()
+plt.scatter(jugadores_imputacion_paradas["calificacion_media"], jugadores_imputacion_paradas["paradas"], c=jugadores_imputacion_paradas["imputed"])
+
+ax.set_xlabel("calificacion_media")
+
+ax.set_ylabel("paradas")
+
+#Minuto_evento: complete los datos faltantes utilizando Imputación por Interpolación considerando los eventos previos y posteriores del mismo partido
+#Como nos pide hacer la imputación por interpolación considernado los eventos previos y posteriores (es decir, ambos), usaremos interpolación local.
+
+eventos["minuto_evento"] = (eventos["minuto_evento"].interpolate("linear")) # La interpolación lineal calcula los valores faltantes siguiendo una línea recta entre los puntos vecinos.)
+
+#8) Ahora solo falta exportar los tres dataframes a excel. Para ello vamos a usar una funcion de pandas:
+jugadores.to_excel("jugadores.xlsx", index=False)
+partidos.to_excel("partidos.xlsx", index=False)
+eventos.to_excel("eventos.xlsx", index=False)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # BLOQUE 2
 # ANÁLISIS 1

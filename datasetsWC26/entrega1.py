@@ -40,6 +40,7 @@ df_mundial_202
 df_mundial_2026 = pd.read_csv("matches_mundial2026.csv", sep=";")
 df_mundial_2026
 
+partidos["index_partido"] = df_mundial_2026["match_id"]
 partidos["fecha_partido"] = pd.concat([df_mundial_202["Date"], df_mundial_2026["date"]], ignore_index=True)
 partidos["ronda"] = pd.concat([df_mundial_202["Round"], pd.Series([None]*len(df_mundial_2026))], ignore_index=True)
 partidos["estadio"] = pd.concat([df_mundial_202["Venue"], pd.Series([None]*len(df_mundial_2026))], ignore_index=True)

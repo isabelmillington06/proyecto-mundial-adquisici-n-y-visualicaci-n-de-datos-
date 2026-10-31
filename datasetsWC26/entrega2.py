@@ -107,10 +107,11 @@ dataframe_tarjetas = dataframe_tarjetas[dataframe_tarjetas["tipo_evento"].isin([
 
 dataframe_tarjetas= dataframe_tarjetas.groupby(["index_partido","ronda"]).size().to_frame(name= "numero_tarjetas")
 
-
 dataframe_tarjetas["numero_tarjetas"] = (dataframe_tarjetas["numero_tarjetas"].fillna(0).astype(int)) ## para que aparezcan también los partidos donde no hay ninguna tarjeta 
 
-## Ahora para el gráfcio de cajas agrupado por ronda:
+## Ahora para el gráfico de cajas agrupado por ronda:
 
 fig = px.box(dataframe_tarjetas.reset_index(), x = "ronda", y = "numero_tarjetas",hover_data=["index_partido"],color_discrete_sequence=px.colors.qualitative.Pastel, title="Distribución de tarjetas por ronda del Mundial",) ## reseteamos el index para que existan como solumnas las variables 
 fig.show()
+
+##8)

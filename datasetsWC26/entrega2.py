@@ -2,7 +2,7 @@ import plotly.express as px
 import matplotlib.pyplot as plt
 import streamlit as st
 
-## PARTE 2
+## BLOQQUE 2
 
 ## ANÁLISIS 2. Rendimiento de Jugadores Clave. Se quiere evaluar qué jugadores han dado un mejor rendimiento en el Mundial 
 # y si realmente las grandes estrellas han cumplido las expectativas o han decepcionado. Para ello genere las siguientes visualizaciones utilizando las librerías Ploty y Streamlit:
@@ -51,10 +51,9 @@ jugadores_filtrado["ranking_mercado"] = range(1, len(jugadores_filtrado)+1)
 top15 = jugadores_filtrado.sort_values(by="goles_minuto", ascending=False).head(15)
 
 ## Ahora creamos la gráfica de barras:
-top15["ranking_texto"] = top15["ranking_mercado"].astype(str) + "º"
-fig = px.bar(top15, x = "ranking_texto", y = "goles_minuto", color= "nombre_jugador", title="Top 15 jugadores por goles/minuto",template="plotly_white")
+fig = px.bar(top15, x = "goles_minuto", y = "nombre_jugador", color= "goles_minuto",color_continuous_scale=["#66B8E5", "#62D2B0"], orientation="h", hover_data="ranking_mercado",title="Top 15 jugadores por goles/minuto",template="plotly_white")
 
-fig.update_layout(xaxis_title="Ranking en valor de mercado",yaxis_title="Goles por minuto")
+fig.update_layout(xaxis_title="Goles por minuto",yaxis_title="Jugador",    coloraxis_showscale=False,)
 
 fig.show()
 
@@ -89,3 +88,29 @@ view['obs_id'] = view.index
 
 fig = px.scatter(view, x = "minutos_jugados", y = "calificacion_media", size= "valor_mercado", color="color", color_discrete_map={"ha marcado": "blue","no ha marcado": "purple"}, hover_data=["seleccion_nacional", "posicion"], template="plotly_white", title= "Rendimiento de los Jugadores según Minutos, Calificación y Valor de Mercado")
 event = st.plotly_chart(fig, width= "stretch", key= "jugadores_plot", on_select="rerun", selection_mode= ('points','box'))
+
+
+## ANÁLISIS 3.  Impacto Arbitral. Se quiere analizar si existen patrones diferenciados en el criterio arbitral a lo Largo del Mundial. 
+# Para ello genere las siguientes visualizaciones utilizando las librerías Ploty y Streamlit:
+
+## 7) Gráfico de cajas que muestre el número de tarjetas por partido 
+## Primero de todo leemos los datafrmaes que vamos a usar:
+eventos = pd.read_excel("eventos.xlsx")
+partidos = pd.read_excel("partidos.xlsx")
+
+## Primero, vamos a crear un nuevo dataframe con el indice de partido, la ronda y el número de tarjets (rojas y amarillas sumadas)
+## Para esto, vmaos a necesitar usar la función .merge() con los dataframes eventos y partidos:
+
+dataframe_tarjetas = pd.merge(eventos, partidos[["index_partido", "ronda"]], on="index_partido", how="left") ## usamos left porque nos queremos quedar con todos los eventos
+
+dataframe_tarjetas = dataframe_tarjetas[dataframe_tarjetas["tipo_evento"].isin(["Yellow Card", "Red Card"])]
+
+dataframe_tarjetas= dataframe_tarjetas.groupby(["index_partido","ronda"]).size().to_frame(name= "numero_tarjetas")
+
+
+dataframe_tarjetas["numero_tarjetas"] = (dataframe_tarjetas["numero_tarjetas"].fillna(0).astype(int)) ## para que aparezcan también los partidos donde no hay ninguna tarjeta 
+
+## Ahora para el gráfcio de cajas agrupado por ronda:
+
+fig = px.box(dataframe_tarjetas.reset_index(), x = "ronda", y = "numero_tarjetas",hover_data=["index_partido"],color_discrete_sequence=px.colors.qualitative.Pastel, title="Distribución de tarjetas por ronda del Mundial",) ## reseteamos el index para que existan como solumnas las variables 
+fig.show()

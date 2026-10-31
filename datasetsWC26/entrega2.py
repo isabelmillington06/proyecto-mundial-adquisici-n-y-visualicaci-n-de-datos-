@@ -1,6 +1,6 @@
 import plotly.express as px
 import matplotlib.pyplot as plt
-
+import streamlit as st
 
 ## PARTE 2
 
@@ -15,7 +15,7 @@ jugadores = pd.read_excel("jugadores.xlsx")
 
 jugadores_filtrado = jugadores[jugadores["minutos_jugados"] >= 180]
 
-fig = px.scatter(jugadores_filtrado, x = "valor_mercado", y = "calificacion_media", color = "posicion", size = "partidos_jugados", hover_data="seleccion_nacional", title= "Relación entre el Valor de Mercado y el Rendimiento de los Jugadores en el Mundial" )
+fig = px.scatter(jugadores_filtrado, x = "valor_mercado", y = "calificacion_media", color = "posicion", size = "partidos_jugados", hover_data="seleccion_nacional", title= "Relación entre el Valor de Mercado y el Rendimiento de los Jugadores en el Mundial", template="plotly_white")
 
 fig.show()
 
@@ -52,8 +52,40 @@ top15 = jugadores_filtrado.sort_values(by="goles_minuto", ascending=False).head(
 
 ## Ahora creamos la gráfica de barras:
 top15["ranking_texto"] = top15["ranking_mercado"].astype(str) + "º"
-fig = px.bar(top15, x = "ranking_texto", y = "goles_minuto", color= "nombre_jugador", title="Top 15 jugadores por goles/minuto")
+fig = px.bar(top15, x = "ranking_texto", y = "goles_minuto", color= "nombre_jugador", title="Top 15 jugadores por goles/minuto",template="plotly_white")
 
 fig.update_layout(xaxis_title="Ranking en valor de mercado",yaxis_title="Goles por minuto")
 
 fig.show()
+
+## 6) Cree un gráfico de burbujas que relacione Minutos Jugados, Calificación Media y Valor de Mercado.
+
+## Para marcar con un color específico a los jugadores que han marcado: 
+
+def aplicar_color(goles):
+    if goles > 0:
+        color = "ha marcado"
+    else: 
+        color = "no ha marcado"
+    return color
+
+## Aquí creamos una nueva columna con el color que tiene que ser la burbuja de ese jugador:
+jugadores_filtrado["color"] = jugadores_filtrado["goles"].apply(aplicar_color)
+
+## Creamos el gráfico:
+
+selecciones = st.sidebar.multiselect("Selección",jugadores_filtrado["seleccion_nacional"].dropna().unique(), default=jugadores_filtrado["seleccion_nacional"].dropna().unique())
+posiciones = st.sidebar.multiselect("Posición",jugadores_filtrado["posicion"].dropna().unique(),default=jugadores_filtrado["posicion"].dropna().unique())
+
+view = jugadores_filtrado[jugadores_filtrado["seleccion_nacional"].isin(selecciones) & jugadores_filtrado["posicion"].isin(posiciones)].copy() 
+if view.empty: 
+    st.info('No hay datos con estos filtros')
+
+
+view = view.copy() 
+view['obs_id'] = view.index
+
+## En este gráfico se relacionan las tres varibales; dos están en los ejes y la tercera (valor_mercado) se ve visualemnte por el tamaño de la burbuja:
+
+fig = px.scatter(view, x = "minutos_jugados", y = "calificacion_media", size= "valor_mercado", color="color", color_discrete_map={"ha marcado": "blue","no ha marcado": "purple"}, hover_data=["seleccion_nacional", "posicion"], template="plotly_white", title= "Rendimiento de los Jugadores según Minutos, Calificación y Valor de Mercado")
+event = st.plotly_chart(fig, width= "stretch", key= "jugadores_plot", on_select="rerun", selection_mode= ('points','box'))

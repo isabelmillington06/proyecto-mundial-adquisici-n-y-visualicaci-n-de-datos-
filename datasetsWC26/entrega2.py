@@ -119,7 +119,7 @@ partidos_seleccion = partidos[(partidos["seleccion_local"] == seleccion_elegida)
 
 
 # seleccionamos todos los eventos de los partidos jugados
-eventos_partidos_seleccion = eventos[eventos["index_partido"].isin(partidos_seleccion.index)].copy()
+eventos_partidos_seleccion = eventos[eventos["index_partido"].isin(partidos_seleccion.index())].copy()
 
 # calculamos los eventos a favor y los eventos en contra
 eventos_partidos_seleccion["resultado_evento"] = "En contra"

@@ -718,7 +718,7 @@ eventos.to_excel("eventos.xlsx", index=False)
 
 
 
-
+'''
 # BLOQUE 2
 # ANÁLISIS 1
 import plotly as px
@@ -763,3 +763,5 @@ rondas_elegidas = st.multiselect("Selecciona las rondas",rondas,default=rondas)
 
 # aplicar filtros
 datos_mapa = eventos_grafico[eventos_grafico["tipo_evento"].isin(tipos_elegidos) & eventos_grafico["ronda"].isin(rondas_elegidas)].copy()
+
+'''

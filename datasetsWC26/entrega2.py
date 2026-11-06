@@ -1,10 +1,14 @@
 import plotly.express as px
 import streamlit as st
-from entrega1 import eventos
-from entrega1 import partidos
-from entrega1 import jugadores
 import plotly.graph_objects as go
 import pandas as pd
+
+jugadores = pd.read_excel("jugadoresWC26.xlsx")
+partidos = pd.read_excel("partidosWC26.xlsx",index_col="index_partido")
+eventos = pd.read_excel("eventosWC26.xlsx")
+
+print(list(partidos.columns))
+print(partidos.head())
 
 ## PARTE 2
 
@@ -17,41 +21,34 @@ st.subheader("Gráfico de barras: eventos de un partido")
 partidos_grafico = partidos.copy()
 eventos_grafico = eventos.copy()
 
-partidos_grafico["etiqueta_partido"] = (partidos_grafico["index_partido"].astype(str)+ " - " + partidos_grafico["seleccion_local"].astype(str)+" vs "+partidos_grafico["seleccion_visitante"].astype(str))
+
+
+
+
+partido_elegido = st.selectbox("Selecciona un partido:", partidos.index,format_func=lambda indice: (partidos.loc[indice,"seleccion_local"] +" vs "+partidos.loc[indice,"seleccion_visitante"]))
+
 
 
 # relacionar los eventos con sus partidos
-eventos_grafico = eventos_grafico.merge(partidos_grafico[["index_partido","etiqueta_partido"]].drop_duplicates("index_partido"),on="index_partido",how="left")
+eventos_grafico = eventos_grafico[eventos_grafico["index_partido"] == partido_elegido].copy()
+eventos_grafico = eventos_grafico.sort_values("minuto_evento")
+eventos_grafico["cantidad"] = 1
 
-# seleccionar partido
-partidos_disponibles = (eventos_grafico[["index_partido","etiqueta_partido"]].dropna(subset=["etiqueta_partido"]).drop_duplicates(subset=["index_partido"]).sort_values("index_partido"))
-
-if partidos_disponibles.empty:
-    st.warning("No hay partidos relacionados con los eventos")
-else:
-    etiquetas = partidos_disponibles["etiqueta_partido"].tolist()
-    partido_elegido = st.selectbox("Selecciona un partido:", options=etiquetas)
-
-# Filtrar eventos 
-    datos = eventos_grafico[eventos_grafico["etiqueta_partido"] == partido_elegido].copy()
-
-    if not datos.empty:
-        datos["minuto_evento"] = pd.to_numeric(datos["minuto_evento"],errors="coerce")
-        datos = datos.dropna(subset=["minuto_evento","tipo_evento"])
-        tipos = datos["tipo_evento"].unique()
-        posiciones = {tipo: i+1 for i, tipo in enumerate(tipos)}
-        datos["posicion"] = datos["tipo_evento"].map(posiciones)
 
         
-        fig = px.bar(datos,x="minuto_evento",y="posicion",color="tipo_evento",hover_name="nombre_jugador",hover_data={"minuto_evento":True,"tipo_evento":True,"nombre_jugador":True,"seleccion_evento":True,"posicion":False},labels={"minuto_evento":"Minuto del partido","tipo_evento":"Tipo de evento","nombre_jugador":"Jugador","seleccion_evento":"Seleccion"}, title=f"Eventos del partido: {partido_elegido}")
-        fig.update_layout(barmode="group",xaxis_title="Minuto del partido",yaxis=dict(title="Tipo de evento",tickmode="array",tickvals=list(posiciones.values()),ticktext=[str(tipo) for tipo in tipos]),legend_title="Tipo de evento",height=550)
-        fig.update_xaxes(range=[0,max(95,datos["minuto_evento"].max()+5)],dtick=15)
-        st.plotly_chart(fig,use_container_width=True)
-        # tabla complementaria
-        with st.expander("Ver tabla de eventos"):
-            st.dataframe(datos[["minuto_evento","tipo_evento","nombre_jugador","seleccion_evento"]].sort_values("minuto_evento"),hide_index=True,use_container_width=True)
+fig = px.bar(eventos_grafico,x="minuto_evento",y="cantidad",color="tipo_evento",hover_name="nombre_jugador",hover_data=["minuto_evento","nombre_jugador","seleccion_evento"],labels={"minuto_evento":"Minuto del partido","tipo_evento":"Tipo de evento","nombre_jugador":"Jugador","seleccion_evento":"Seleccion"}, title=f"Eventos del partido: {partido_elegido}")
+fig.update_layout(template="plotly_white",barmode="group",xaxis_title="Minuto del partido",yaxis_title="Número de eventos",legend_title="Tipo de evento",height=550,hovermode="closest")
+fig.update_traces(width=1.5)
+st.plotly_chart(fig,use_container_width=True)
+    
+      
 
 # MAPA DE CALOR
+
+
+partidos = partidos.reset_index()
+
+
 st.subheader("Mapa de calor: densidad de eventos en los partidos")
 datos_calor = eventos.merge(partidos[["index_partido","ronda"]],on="index_partido",how="left").copy()
 
@@ -119,7 +116,7 @@ partidos_seleccion = partidos[(partidos["seleccion_local"] == seleccion_elegida)
 
 
 # seleccionamos todos los eventos de los partidos jugados
-eventos_partidos_seleccion = eventos[eventos["index_partido"].isin(partidos_seleccion.index())].copy()
+eventos_partidos_seleccion = eventos[eventos["index_partido"].isin(partidos_seleccion.index)].copy()
 
 # calculamos los eventos a favor y los eventos en contra
 eventos_partidos_seleccion["resultado_evento"] = "En contra"
